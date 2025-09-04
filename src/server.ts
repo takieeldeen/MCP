@@ -7,6 +7,8 @@ import { CreateMessageResultSchema } from "@modelcontextprotocol/sdk/types.js";
 import { readFile } from "fs";
 import { writeFile } from "fs/promises";
 import z from "zod";
+console.log("environment variable");
+console.log(process.env.PORT, "Environment variable");
 const server = new McpServer({
   name: "test",
   version: "1.0.0",
@@ -103,7 +105,6 @@ server.tool(
         .replace(/```$/, "")
         .trim()
     );
-    console.log(newUser);
     try {
       const id = await createUser(newUser);
       return {
@@ -139,7 +140,6 @@ server.resource(
     const users = await import("./data/users.json", {
       with: { type: "json" },
     }).then((m) => m.default);
-    console.log(users);
     return {
       contents: [
         {

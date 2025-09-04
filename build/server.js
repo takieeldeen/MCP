@@ -8,6 +8,8 @@ const stdio_js_1 = require("@modelcontextprotocol/sdk/server/stdio.js");
 const types_js_1 = require("@modelcontextprotocol/sdk/types.js");
 const promises_1 = require("fs/promises");
 const zod_1 = __importDefault(require("zod"));
+console.log("environment variable");
+console.log(process.env.PORT, "Environment variable");
 const server = new mcp_js_1.McpServer({
     name: "test",
     version: "1.0.0",
@@ -88,7 +90,6 @@ server.tool("create-random-user", "Generate a random user and store in the datab
         .replace(/^```json/, "")
         .replace(/```$/, "")
         .trim());
-    console.log(newUser);
     try {
         const id = await createUser(newUser);
         return {
@@ -119,7 +120,6 @@ server.resource("users", "users://all", {
     const users = await import("./data/users.json", {
         with: { type: "json" },
     }).then((m) => m.default);
-    console.log(users);
     return {
         contents: [
             {

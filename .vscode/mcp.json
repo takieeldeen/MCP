@@ -2,7 +2,7 @@
   "servers": {
     "create-user-server": {
       "type": "stdio",
-      "command": "node",
+      "command": "node --env-file=.env",
       "args": ["build/server.js"],
       "cwd": "${workspaceFolder}",
       "dev": {
