@@ -1,5 +1,9 @@
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import {
+  McpServer,
+  ResourceTemplate,
+} from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { CreateMessageResultSchema } from "@modelcontextprotocol/sdk/types.js";
 import { readFile } from "fs";
 import { writeFile } from "fs/promises";
 import z from "zod";
@@ -7,9 +11,9 @@ const server = new McpServer({
   name: "test",
   version: "1.0.0",
   capabilities: {
-    resources: {},
-    tools: {},
-    prompts: {},
+    resources: true,
+    tools: true,
+    prompts: false,
   },
 });
 
@@ -53,6 +57,76 @@ server.tool(
   }
 );
 
+server.tool(
+  "create-random-user",
+  "Generate a random user and store in the database",
+  {
+    title: "Generate Random User",
+    readOnlyHint: false,
+    destructiveHint: false,
+    idempotentHint: false,
+    openWorldHint: true,
+  },
+  async () => {
+    const res = await server.server.request(
+      {
+        method: "sampling/createMessage",
+        params: {
+          messages: [
+            {
+              role: "user",
+              content: {
+                type: "text",
+                text: "Generate fake user data. The user should have a unique and realistic name (in Arabic), email, address (in Egypt), and phone number. Return this data as a JSON object with no other text or formatter so it can be used with JSON.parse.",
+              },
+            },
+          ],
+          maxTokens: 1024,
+        },
+      },
+      CreateMessageResultSchema
+    );
+    if (res.content.type !== "text") {
+      return {
+        content: [
+          {
+            type: "text",
+            text: "Failed to generate user",
+          },
+        ],
+      };
+    }
+    const newUser = JSON.parse(
+      res.content.text
+        .trim()
+        .replace(/^```json/, "")
+        .replace(/```$/, "")
+        .trim()
+    );
+    console.log(newUser);
+    try {
+      const id = await createUser(newUser);
+      return {
+        content: [
+          {
+            type: "text",
+            text: `User with ${id} id created successfully`,
+          },
+        ],
+      };
+    } catch (err) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: "Failed to save user",
+          },
+        ],
+      };
+    }
+  }
+);
+
 server.resource(
   "users",
   "users://all",
@@ -65,7 +139,7 @@ server.resource(
     const users = await import("./data/users.json", {
       with: { type: "json" },
     }).then((m) => m.default);
-
+    console.log(users);
     return {
       contents: [
         {
@@ -100,5 +174,63 @@ async function main() {
   const transport = new StdioServerTransport();
   await server.connect(transport);
 }
+
+server.resource(
+  "user-details",
+  new ResourceTemplate("users://{userId}/profile", { list: undefined }),
+  {
+    description: "Profile details of a user",
+    title: "User Profile",
+    mimeType: "application/json",
+  },
+  async (uri, { userId }) => {
+    const users = await import("./data/users.json", {
+      with: { type: "json" },
+    }).then((m) => m.default);
+    const user = users.find((user) => user.id === Number(userId));
+    if (!user)
+      return {
+        contents: [
+          {
+            uri: uri.href,
+            type: "text",
+            text: JSON.stringify({ error: "User not found" }),
+            mimeType: "application/json",
+          },
+        ],
+      };
+    return {
+      contents: [
+        {
+          uri: uri.href,
+          type: "text",
+          text: JSON.stringify(user, null, 2),
+          mimeType: "application/json",
+        },
+      ],
+    };
+  }
+);
+
+server.prompt(
+  "create-fake-user",
+  "Generate fake user data for a given name",
+  {
+    name: z.string(),
+  },
+  ({ name }: { name: string }) => {
+    return {
+      messages: [
+        {
+          role: "user",
+          content: {
+            type: "text",
+            text: `Generate a fake user profile for the name ${name} with email, address, and phone number in JSON format.`,
+          },
+        },
+      ],
+    };
+  }
+);
 
 main();

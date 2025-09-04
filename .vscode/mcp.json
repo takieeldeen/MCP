@@ -9,8 +9,8 @@
         "watch": "build/**/*.js",
         "debug": {
           "type": "node"
-        },
-        "terminal": "integrated"
+        }
+        // "terminal": "integrated"
       }
     }
   },
