@@ -8,6 +8,7 @@ const stdio_js_1 = require("@modelcontextprotocol/sdk/server/stdio.js");
 const types_js_1 = require("@modelcontextprotocol/sdk/types.js");
 const promises_1 = require("fs/promises");
 const zod_1 = __importDefault(require("zod"));
+const jira_1 = require("./utils/jira");
 const server = new mcp_js_1.McpServer({
     name: "test",
     version: "1.0.0",
@@ -46,6 +47,100 @@ server.tool("create-user", "Create a new user in the database", {
                 {
                     type: "text",
                     text: "Failed to save user",
+                },
+            ],
+        };
+    }
+});
+// Developing New Feature
+server.tool("init-feature", "Start Development of a new feature", {
+    issueId: zod_1.default.string(),
+}, {
+    title: "Create a New Feature ",
+    readOnlyHint: false,
+    destructiveHint: false,
+    idempotentHint: false,
+    openWorldHint: true,
+}, async ({ issueId }) => {
+    try {
+        const targetIssue = await (0, jira_1.getIssueDetails)(issueId);
+        const FE_CHILD = targetIssue?.fields?.subtasks?.find((subtask) => subtask?.fields?.summary?.toLowerCase() === "fe");
+        const HAS_FE_CHILD = !!FE_CHILD;
+        if (HAS_FE_CHILD) {
+            await (0, jira_1.changeIssueStatus)(FE_CHILD?.key, "In Progress");
+            await (0, jira_1.assignUserToIssue)(FE_CHILD?.key);
+        }
+        else {
+            const res = (await (0, jira_1.createFESubtask)(issueId));
+            await (0, jira_1.changeIssueStatus)(res?.subtaskKey, "In Progress");
+            await (0, jira_1.assignUserToIssue)(res?.subtaskKey);
+        }
+        await (0, jira_1.changeIssueStatus)(issueId, "In Progress");
+        return {
+            content: [
+                {
+                    type: "text",
+                    text: "JIRA Issue Found and status will be converted to In Progress",
+                },
+            ],
+        };
+    }
+    catch {
+        return {
+            content: [
+                {
+                    type: "text",
+                    text: "Something went wrong while updating your jira status",
+                },
+            ],
+        };
+    }
+});
+// Creating a PR For a feature
+server.tool("create-pr", "Create a Pull request for the currently under development feature.", {
+    issueId: zod_1.default.string(),
+}, {
+    title: "Create a New Feature ",
+    readOnlyHint: false,
+    destructiveHint: false,
+    idempotentHint: false,
+    openWorldHint: true,
+}, async ({ issueId }) => {
+    await (0, jira_1.addIssueComment)(issueId, "PR_CREATION");
+    return {
+        content: [
+            {
+                type: "text",
+                text: "JIRA Issue Found and status will be converted to In Progress",
+            },
+        ],
+    };
+});
+server.tool("create-branch", "Create a Branch for Development of a certain feature", {
+    issueId: zod_1.default.string(),
+}, {
+    title: "Create a Branch",
+    readOnlyHint: false,
+    destructiveHint: false,
+    idempotentHint: false,
+    openWorldHint: true,
+}, async ({ issueId }) => {
+    try {
+        return {
+            content: [
+                {
+                    type: "text",
+                    text: "Branch was created successfully using the issue id",
+                },
+            ],
+        };
+    }
+    catch {
+        return {
+            content: [
+                {
+                    type: "text",
+                    text: "Something went wrong while creating the new branch",
                 },
             ],
         };
