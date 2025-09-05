@@ -13,6 +13,9 @@ import {
   createFESubtask,
   getIssueDetails,
 } from "./utils/jira";
+import { promisify } from "util";
+import { exec } from "child_process";
+import { runCommand } from "./utils/terminal";
 const server = new McpServer({
   name: "test",
   version: "1.0.0",
@@ -62,6 +65,34 @@ server.tool(
     }
   }
 );
+
+// Create Github branch
+server.tool(
+  "create-branch",
+  "Create a new github branch for the current repo",
+  {
+    branchName: z.string(),
+  },
+  { title: "Create a new github branch", destructiveHint: true },
+  async ({ branchName }) => {
+    try {
+      await runCommand(`git checkout -b ${branchName} origin/main`);
+      return {
+        content: [{ type: "text", text: `✅ Branch ${branchName} created.` }],
+      };
+    } catch (err: any) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Something went wrong while creating a new branch ${err?.message}`,
+          },
+        ],
+      };
+    }
+  }
+);
+
 // Developing New Feature
 server.tool(
   "init-feature",
@@ -79,7 +110,6 @@ server.tool(
   async ({ issueId }) => {
     try {
       const targetIssue = await getIssueDetails(issueId);
-
       const FE_CHILD = targetIssue?.fields?.subtasks?.find(
         (subtask: any) => subtask?.fields?.summary?.toLowerCase() === "fe"
       );
@@ -142,42 +172,6 @@ server.tool(
 );
 
 server.tool(
-  "create-branch",
-  "Create a Branch for Development of a certain feature",
-  {
-    issueId: z.string(),
-  },
-  {
-    title: "Create a Branch",
-    readOnlyHint: false,
-    destructiveHint: false,
-    idempotentHint: false,
-    openWorldHint: true,
-  },
-  async ({ issueId }) => {
-    try {
-      return {
-        content: [
-          {
-            type: "text",
-            text: "Branch was created successfully using the issue id",
-          },
-        ],
-      };
-    } catch {
-      return {
-        content: [
-          {
-            type: "text",
-            text: "Something went wrong while creating the new branch",
-          },
-        ],
-      };
-    }
-  }
-);
-
-server.tool(
   "create-random-user",
   "Generate a random user and store in the database",
   {
@@ -223,7 +217,6 @@ server.tool(
         .replace(/```$/, "")
         .trim()
     );
-    console.log(newUser);
     try {
       const id = await createUser(newUser);
       return {

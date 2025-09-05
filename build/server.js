@@ -9,6 +9,7 @@ const types_js_1 = require("@modelcontextprotocol/sdk/types.js");
 const promises_1 = require("fs/promises");
 const zod_1 = __importDefault(require("zod"));
 const jira_1 = require("./utils/jira");
+const terminal_1 = require("./utils/terminal");
 const server = new mcp_js_1.McpServer({
     name: "test",
     version: "1.0.0",
@@ -47,6 +48,27 @@ server.tool("create-user", "Create a new user in the database", {
                 {
                     type: "text",
                     text: "Failed to save user",
+                },
+            ],
+        };
+    }
+});
+// Create Github branch
+server.tool("create-branch", "Create a new github branch for the current repo", {
+    branchName: zod_1.default.string(),
+}, { title: "Create a new github branch", destructiveHint: true }, async ({ branchName }) => {
+    try {
+        await (0, terminal_1.runCommand)(`git checkout -b ${branchName} origin/main`);
+        return {
+            content: [{ type: "text", text: `✅ Branch ${branchName} created.` }],
+        };
+    }
+    catch (err) {
+        return {
+            content: [
+                {
+                    type: "text",
+                    text: `Something went wrong while creating a new branch ${err?.message}`,
                 },
             ],
         };
@@ -116,36 +138,6 @@ server.tool("create-pr", "Create a Pull request for the currently under developm
         ],
     };
 });
-server.tool("create-branch", "Create a Branch for Development of a certain feature", {
-    issueId: zod_1.default.string(),
-}, {
-    title: "Create a Branch",
-    readOnlyHint: false,
-    destructiveHint: false,
-    idempotentHint: false,
-    openWorldHint: true,
-}, async ({ issueId }) => {
-    try {
-        return {
-            content: [
-                {
-                    type: "text",
-                    text: "Branch was created successfully using the issue id",
-                },
-            ],
-        };
-    }
-    catch {
-        return {
-            content: [
-                {
-                    type: "text",
-                    text: "Something went wrong while creating the new branch",
-                },
-            ],
-        };
-    }
-});
 server.tool("create-random-user", "Generate a random user and store in the database", {
     title: "Generate Random User",
     readOnlyHint: false,
@@ -183,7 +175,6 @@ server.tool("create-random-user", "Generate a random user and store in the datab
         .replace(/^```json/, "")
         .replace(/```$/, "")
         .trim());
-    console.log(newUser);
     try {
         const id = await createUser(newUser);
         return {
