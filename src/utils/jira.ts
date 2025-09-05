@@ -17,14 +17,7 @@ export async function getIssueDetails(issueId: string) {
     const res = await jiraAxios.get(URL);
     return res?.data;
   } catch (err) {
-    return {
-      content: [
-        {
-          type: "text",
-          text: "Something went wrong while getting the specified issue details",
-        },
-      ],
-    };
+    throw err;
   }
 }
 

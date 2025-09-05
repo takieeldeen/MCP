@@ -13,9 +13,8 @@ import {
   createFESubtask,
   getIssueDetails,
 } from "./utils/jira";
-import { promisify } from "util";
-import { exec } from "child_process";
 import { runCommand } from "./utils/terminal";
+import { createGitBranch } from "./utils/github";
 const server = new McpServer({
   name: "test",
   version: "1.0.0",
@@ -25,6 +24,59 @@ const server = new McpServer({
     prompts: false,
   },
 });
+
+server.tool(
+  "get-issue-details",
+  "Get the details of a specific jira issue",
+  {
+    issueId: z.string(),
+  },
+  {
+    title: "Get Issue Details",
+    readOnlyHint: false,
+    destructiveHint: false,
+    idempotentHint: false,
+    openWorldHint: true,
+  },
+  async ({ issueId }) => {
+    try {
+      const targetIssue = await getIssueDetails(issueId);
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(targetIssue, null, 2),
+          },
+        ],
+      };
+    } catch (err: any) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Something went wrong while getting the specified issue details ${err?.message}`,
+          },
+        ],
+      };
+    }
+  }
+);
+
+// Create Github branch
+server.tool(
+  "create-branch",
+  "Create a new github branch for the current repo",
+  {
+    branchName: z.string(),
+  },
+  { title: "Create a new github branch", destructiveHint: true },
+  async ({ branchName }) => {
+    const result = await createGitBranch(branchName);
+    return {
+      content: [{ type: "text", text: result.message }],
+    };
+  }
+);
 
 server.tool(
   "create-user",
@@ -66,33 +118,6 @@ server.tool(
   }
 );
 
-// Create Github branch
-server.tool(
-  "create-branch",
-  "Create a new github branch for the current repo",
-  {
-    branchName: z.string(),
-  },
-  { title: "Create a new github branch", destructiveHint: true },
-  async ({ branchName }) => {
-    try {
-      await runCommand(`git checkout -b ${branchName} origin/main`);
-      return {
-        content: [{ type: "text", text: `✅ Branch ${branchName} created.` }],
-      };
-    } catch (err: any) {
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Something went wrong while creating a new branch ${err?.message}`,
-          },
-        ],
-      };
-    }
-  }
-);
-
 // Developing New Feature
 server.tool(
   "init-feature",
@@ -109,7 +134,21 @@ server.tool(
   },
   async ({ issueId }) => {
     try {
+      //1. Getting the details for the jira issue.
       const targetIssue = await getIssueDetails(issueId);
+
+      //2. Creating Github Branch for the issue
+      const branchName = `${targetIssue?.key}-${targetIssue?.fields?.summary
+        ?.split(" ")
+        .join("-")
+        .toUpperCase()}`;
+      const branchResult = await createGitBranch(branchName);
+      if (!branchResult.success) {
+        return {
+          content: [{ type: "text", text: branchResult.message }],
+        };
+      }
+
       const FE_CHILD = targetIssue?.fields?.subtasks?.find(
         (subtask: any) => subtask?.fields?.summary?.toLowerCase() === "fe"
       );

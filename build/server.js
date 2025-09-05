@@ -9,7 +9,7 @@ const types_js_1 = require("@modelcontextprotocol/sdk/types.js");
 const promises_1 = require("fs/promises");
 const zod_1 = __importDefault(require("zod"));
 const jira_1 = require("./utils/jira");
-const terminal_1 = require("./utils/terminal");
+const github_1 = require("./utils/github");
 const server = new mcp_js_1.McpServer({
     name: "test",
     version: "1.0.0",
@@ -18,6 +18,46 @@ const server = new mcp_js_1.McpServer({
         tools: true,
         prompts: false,
     },
+});
+server.tool("get-issue-details", "Get the details of a specific jira issue", {
+    issueId: zod_1.default.string(),
+}, {
+    title: "Get Issue Details",
+    readOnlyHint: false,
+    destructiveHint: false,
+    idempotentHint: false,
+    openWorldHint: true,
+}, async ({ issueId }) => {
+    try {
+        const targetIssue = await (0, jira_1.getIssueDetails)(issueId);
+        return {
+            content: [
+                {
+                    type: "text",
+                    text: JSON.stringify(targetIssue, null, 2),
+                },
+            ],
+        };
+    }
+    catch (err) {
+        return {
+            content: [
+                {
+                    type: "text",
+                    text: `Something went wrong while getting the specified issue details ${err?.message}`,
+                },
+            ],
+        };
+    }
+});
+// Create Github branch
+server.tool("create-branch", "Create a new github branch for the current repo", {
+    branchName: zod_1.default.string(),
+}, { title: "Create a new github branch", destructiveHint: true }, async ({ branchName }) => {
+    const result = await (0, github_1.createGitBranch)(branchName);
+    return {
+        content: [{ type: "text", text: result.message }],
+    };
 });
 server.tool("create-user", "Create a new user in the database", {
     name: zod_1.default.string(),
@@ -53,27 +93,6 @@ server.tool("create-user", "Create a new user in the database", {
         };
     }
 });
-// Create Github branch
-server.tool("create-branch", "Create a new github branch for the current repo", {
-    branchName: zod_1.default.string(),
-}, { title: "Create a new github branch", destructiveHint: true }, async ({ branchName }) => {
-    try {
-        await (0, terminal_1.runCommand)(`git checkout -b ${branchName} origin/main`);
-        return {
-            content: [{ type: "text", text: `✅ Branch ${branchName} created.` }],
-        };
-    }
-    catch (err) {
-        return {
-            content: [
-                {
-                    type: "text",
-                    text: `Something went wrong while creating a new branch ${err?.message}`,
-                },
-            ],
-        };
-    }
-});
 // Developing New Feature
 server.tool("init-feature", "Start Development of a new feature", {
     issueId: zod_1.default.string(),
@@ -85,7 +104,19 @@ server.tool("init-feature", "Start Development of a new feature", {
     openWorldHint: true,
 }, async ({ issueId }) => {
     try {
+        //1. Getting the details for the jira issue.
         const targetIssue = await (0, jira_1.getIssueDetails)(issueId);
+        //2. Creating Github Branch for the issue
+        const branchName = `${targetIssue?.key}-${targetIssue?.fields?.summary
+            ?.split(" ")
+            .join("-")
+            .toUpperCase()}`;
+        const branchResult = await (0, github_1.createGitBranch)(branchName);
+        if (!branchResult.success) {
+            return {
+                content: [{ type: "text", text: branchResult.message }],
+            };
+        }
         const FE_CHILD = targetIssue?.fields?.subtasks?.find((subtask) => subtask?.fields?.summary?.toLowerCase() === "fe");
         const HAS_FE_CHILD = !!FE_CHILD;
         if (HAS_FE_CHILD) {
