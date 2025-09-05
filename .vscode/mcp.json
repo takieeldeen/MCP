@@ -2,15 +2,15 @@
   "servers": {
     "create-user-server": {
       "type": "stdio",
-      "command": "node --env-file=.env",
-      "args": ["build/server.js"],
+      "command": "node",
+      "args": ["--env-file=.env", "build/server.js"],
       "cwd": "${workspaceFolder}",
       "dev": {
         "watch": "build/**/*.js",
         "debug": {
           "type": "node"
-        }
-        // "terminal": "integrated"
+        },
+        "terminal": "integrated"
       }
     }
   },
