@@ -4,11 +4,17 @@ import {
 } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { CreateMessageResultSchema } from "@modelcontextprotocol/sdk/types.js";
-import { readFile } from "fs";
 import { writeFile } from "fs/promises";
 import z from "zod";
-console.log("environment variable");
-console.log(process.env.PORT, "Environment variable");
+import {
+  addIssueComment,
+  assignUserToIssue,
+  changeIssueStatus,
+  createFESubtask,
+  getIssueDetails,
+} from "./utils/jira";
+import { runCommand } from "./utils/terminal";
+import { createGitBranch } from "./utils/github";
 const server = new McpServer({
   name: "test",
   version: "1.0.0",
@@ -18,6 +24,75 @@ const server = new McpServer({
     prompts: false,
   },
 });
+
+server.tool(
+  "get-issue-details",
+  "Get the details of a specific jira issue",
+  {
+    issueId: z.string(),
+  },
+  {
+    title: "Get Issue Details",
+    readOnlyHint: false,
+    destructiveHint: false,
+    idempotentHint: false,
+    openWorldHint: true,
+  },
+  async ({ issueId }) => {
+    try {
+      const targetIssue = await getIssueDetails(issueId);
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(targetIssue, null, 2),
+          },
+        ],
+      };
+    } catch (err: any) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Something went wrong while getting the specified issue details ${err?.message}`,
+          },
+        ],
+      };
+    }
+  }
+);
+
+// Create Github branch
+server.tool(
+  "create-branch",
+  "Create a new github branch for the current repo",
+  {
+    branchName: z.string(),
+  },
+  { title: "Create a new github branch", destructiveHint: true },
+  async ({ branchName }) => {
+    const result = await createGitBranch(branchName);
+    return {
+      content: [{ type: "text", text: result.message }],
+    };
+  }
+);
+
+// Change issue status
+server.tool(
+  "change-jira-status",
+  "Change Jira issue status",
+  { issueId: z.string(), status: z.enum(["To Do", "In Progress", "Done"]) },
+  { title: "Change the status of a jira issue" },
+  async ({ issueId, status }) => {
+    await changeIssueStatus(issueId, status);
+    return {
+      content: [
+        { type: "text", text: `🔄 Issue ${issueId} moved to ${status}` },
+      ],
+    };
+  }
+);
 
 server.tool(
   "create-user",
@@ -56,6 +131,98 @@ server.tool(
         ],
       };
     }
+  }
+);
+
+// Developing New Feature
+server.tool(
+  "init-feature",
+  "Start Development of a new feature",
+  {
+    issueId: z.string(),
+  },
+  {
+    title: "Create a New Feature ",
+    readOnlyHint: false,
+    destructiveHint: false,
+    idempotentHint: false,
+    openWorldHint: true,
+  },
+  async ({ issueId }) => {
+    try {
+      //1. Getting the details for the jira issue.
+      const targetIssue = await getIssueDetails(issueId);
+
+      //2. Creating Github Branch for the issue
+      const branchName = `${targetIssue?.key}-${targetIssue?.fields?.summary
+        ?.split(" ")
+        .join("-")
+        .toUpperCase()}`;
+      const branchResult = await createGitBranch(branchName);
+      if (!branchResult.success) {
+        return {
+          content: [{ type: "text", text: branchResult.message }],
+        };
+      }
+      // 3. Create a child Issue for FE
+      const FE_CHILD = targetIssue?.fields?.subtasks?.find(
+        (subtask: any) => subtask?.fields?.summary?.toLowerCase() === "fe"
+      );
+      const HAS_FE_CHILD = !!FE_CHILD;
+      if (HAS_FE_CHILD) {
+        await changeIssueStatus(FE_CHILD?.key, "In Progress");
+        await assignUserToIssue(FE_CHILD?.key);
+      } else {
+        const res = (await createFESubtask(issueId)) as any;
+        await changeIssueStatus(res?.subtaskKey, "In Progress");
+        await assignUserToIssue(res?.subtaskKey);
+      }
+      await changeIssueStatus(issueId, "In Progress");
+      return {
+        content: [
+          {
+            type: "text",
+            text: "JIRA Issue Found and status will be converted to In Progress",
+          },
+        ],
+      };
+    } catch {
+      return {
+        content: [
+          {
+            type: "text",
+            text: "Something went wrong while updating your jira status",
+          },
+        ],
+      };
+    }
+  }
+);
+
+// Creating a PR For a feature
+server.tool(
+  "create-pr",
+  "Create a Pull request for the currently under development feature.",
+  {
+    issueId: z.string(),
+  },
+  {
+    title: "Create a New Feature ",
+    readOnlyHint: false,
+    destructiveHint: false,
+    idempotentHint: false,
+    openWorldHint: true,
+  },
+  async ({ issueId }) => {
+    await addIssueComment(issueId, "PR_CREATION");
+    return {
+      content: [
+        {
+          type: "text",
+          text: "JIRA Issue Found and status will be converted to In Progress",
+        },
+      ],
+    };
   }
 );
 

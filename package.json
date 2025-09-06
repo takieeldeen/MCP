@@ -6,14 +6,17 @@
     "server:build": "tsc",
     "server:build-watch": "tsc --watch",
     "server:dev": "tsx src/server.ts",
-    "server:inspect": "npx @modelcontextprotocol/inspector npm run server:dev"
+    "server:inspect": "npx @modelcontextprotocol/inspector npm run server:dev",
+    "client:dev": "tsx src/client.ts"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "description": "",
   "dependencies": {
+    "@inquirer/prompts": "^7.8.4",
     "@modelcontextprotocol/sdk": "^1.17.4",
+    "axios": "^1.11.0",
     "zod": "^3.25.76"
   },
   "devDependencies": {
