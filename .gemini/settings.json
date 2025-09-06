@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "create-user-server": {
+      "command": "node",
+      "args": ["--env-file=.env", "build/server.js"]
+    }
+  }
+}
