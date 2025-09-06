@@ -78,6 +78,22 @@ server.tool(
   }
 );
 
+// Change issue status
+server.tool(
+  "change-jira-status",
+  "Change Jira issue status",
+  { issueId: z.string(), status: z.enum(["To Do", "In Progress", "Done"]) },
+  { title: "Change the status of a jira issue" },
+  async ({ issueId, status }) => {
+    await changeIssueStatus(issueId, status);
+    return {
+      content: [
+        { type: "text", text: `🔄 Issue ${issueId} moved to ${status}` },
+      ],
+    };
+  }
+);
+
 server.tool(
   "create-user",
   "Create a new user in the database",
@@ -148,7 +164,7 @@ server.tool(
           content: [{ type: "text", text: branchResult.message }],
         };
       }
-
+      // 3. Create a child Issue for FE
       const FE_CHILD = targetIssue?.fields?.subtasks?.find(
         (subtask: any) => subtask?.fields?.summary?.toLowerCase() === "fe"
       );
